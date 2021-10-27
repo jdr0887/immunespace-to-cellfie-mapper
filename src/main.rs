@@ -29,14 +29,22 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     let options = Options::from_args();
     debug!("{:?}", options);
 
+    let genename_to_hgnc_id_data = include_str!("data/genename-to-hgnc-id.csv");
+
+    let tuples = genename_to_hgnc_id_data
+        .lines()
+        .map(|line| {
+            let split: Vec<String> = line.split(",").map(|s| s.to_string()).collect();
+            (split.get(0).unwrap().clone(), split.get(1).unwrap().clone())
+        })
+        .collect_vec();
+
+    let gene_symbol_name_to_hgnc_id_map: HashMap<String, String> = tuples.into_iter().collect();
+
     let agent: ureq::Agent = ureq::AgentBuilder::new()
         .timeout_read(Duration::from_secs(10))
         .timeout_write(Duration::from_secs(10))
         .build();
-
-    let gene_names = get_gene_names(&options.input)?;
-    let gene_names = gene_names.into_iter().filter(|a| !a.is_empty()).collect_vec();
-    let gene_symbol_name_to_hgnc_id_map = get_gene_name_to_hgnc_id_map(&agent, gene_names)?;
 
     let output_file = fs::File::create(options.output)?;
     let mut writer = io::BufWriter::new(output_file);
@@ -65,45 +73,11 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     Ok(())
 }
 
-fn get_gene_name_to_hgnc_id_map(agent: &ureq::Agent, gene_names: Vec<String>) -> Result<HashMap<String, String>, Box<dyn error::Error>> {
-    let mut map: HashMap<String, String> = HashMap::new();
-
-    for chunk in gene_names.chunks(250) {
-        let query = chunk.join("+OR+");
-        let url = format!("http://rest.genenames.org/search/symbol/{}", query);
-        let response = agent.get(url.as_str()).set("Accept", "application/json").call()?.into_string()?;
-        let v: serde_json::Value = serde_json::from_str(response.as_str())?;
-        v["response"]["docs"]
-            .as_array()
-            .unwrap()
-            .into_iter()
-            .map(|a| {
-                let e: Entry = serde_json::from_value(a.clone()).unwrap();
-                e
-            })
-            .for_each(|e| {
-                map.entry(e.symbol).or_insert(e.hgnc_id.replace("HGNC:", ""));
-            });
-    }
-
-    Ok(map)
-}
-
-fn get_gene_names(input: &path::PathBuf) -> Result<Vec<String>, Box<dyn error::Error>> {
-    let file = fs::File::open(input)?;
-    let reader = io::BufReader::new(file);
-    let mut rdr = csv::Reader::from_reader(reader);
-
-    let mut gene_names = vec![];
-    for result in rdr.records().into_iter().skip(1) {
-        let record = result?;
-        let gene_name = record[0].to_string();
-        gene_names.push(gene_name.replace("\"", ""));
-    }
-    gene_names.sort();
-    gene_names.dedup();
-
-    Ok(gene_names)
+#[derive(Serialize, Deserialize, Debug)]
+struct Entry {
+    hgnc_id: String,
+    score: f32,
+    symbol: String,
 }
 
 fn get_gene_name_to_hgnc_id(agent: &ureq::Agent, gene: &str) -> Result<(String, String), Box<dyn error::Error>> {
@@ -121,11 +95,4 @@ fn get_gene_name_to_hgnc_id(agent: &ureq::Agent, gene: &str) -> Result<(String, 
         })
         .for_each(|e| ret.push((e.symbol, e.hgnc_id.replace("HGNC:", ""))));
     Ok(ret.first().unwrap().clone())
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct Entry {
-    hgnc_id: String,
-    score: f32,
-    symbol: String,
 }
