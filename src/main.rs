@@ -1,7 +1,6 @@
 #[macro_use]
 extern crate log;
 
-use csv::Reader;
 use humantime::format_duration;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -9,9 +8,9 @@ use std::collections::HashMap;
 use std::error;
 use std::fs;
 use std::io;
-use std::io::{BufRead, Read, Write};
+use std::io::{BufRead, Write};
 use std::path;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
@@ -105,29 +104,29 @@ fn process_phenotype_data_matrix(phenotype_data_matrix: &path::PathBuf) -> Resul
     Ok(())
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct Entry {
-    hgnc_id: String,
-    score: f32,
-    symbol: String,
-}
-
-fn get_gene_name_to_hgnc_id(agent: &ureq::Agent, gene: &str) -> Result<(String, String), Box<dyn error::Error>> {
-    let url = format!("http://rest.genenames.org/search/prev_symbol/{}", gene);
-    let response = agent.get(url.as_str()).set("Accept", "application/json").call()?.into_string()?;
-    let v: serde_json::Value = serde_json::from_str(response.as_str())?;
-    let mut ret = vec![];
-    v["response"]["docs"]
-        .as_array()
-        .unwrap()
-        .into_iter()
-        .map(|a| {
-            let e: Entry = serde_json::from_value(a.clone()).unwrap();
-            e
-        })
-        .for_each(|e| ret.push((e.symbol, e.hgnc_id.replace("HGNC:", ""))));
-    Ok(ret.first().unwrap().clone())
-}
+// #[derive(Serialize, Deserialize, Debug)]
+// struct Entry {
+//     hgnc_id: String,
+//     score: f32,
+//     symbol: String,
+// }
+//
+// fn get_gene_name_to_hgnc_id(agent: &ureq::Agent, gene: &str) -> Result<(String, String), Box<dyn error::Error>> {
+//     let url = format!("http://rest.genenames.org/search/prev_symbol/{}", gene);
+//     let response = agent.get(url.as_str()).set("Accept", "application/json").call()?.into_string()?;
+//     let v: serde_json::Value = serde_json::from_str(response.as_str())?;
+//     let mut ret = vec![];
+//     v["response"]["docs"]
+//         .as_array()
+//         .unwrap()
+//         .into_iter()
+//         .map(|a| {
+//             let e: Entry = serde_json::from_value(a.clone()).unwrap();
+//             e
+//         })
+//         .for_each(|e| ret.push((e.symbol, e.hgnc_id.replace("HGNC:", ""))));
+//     Ok(ret.first().unwrap().clone())
+// }
 
 fn filter_genes_by_model(model: &String) -> Result<Vec<String>, Box<dyn error::Error>> {
     let mut genes_filter_list: Vec<String> = vec![];
@@ -189,7 +188,7 @@ fn get_gene_symbol_name_to_hgnc_id_map(genefilter_list: &Vec<String>) -> Result<
 
     let mut gene_symbol_name_to_hgnc_id_map: HashMap<String, String> = tuples.into_iter().collect();
     debug!("gene_symbol_name_to_hgnc_id_map.len(): {}", gene_symbol_name_to_hgnc_id_map.len());
-    gene_symbol_name_to_hgnc_id_map.retain(|k, v| results_to_retain.contains(k));
+    gene_symbol_name_to_hgnc_id_map.retain(|k, _v| results_to_retain.contains(k));
     debug!("gene_symbol_name_to_hgnc_id_map.len(): {}", gene_symbol_name_to_hgnc_id_map.len());
 
     Ok(gene_symbol_name_to_hgnc_id_map)
