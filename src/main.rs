@@ -17,14 +17,14 @@ use structopt::StructOpt;
 #[derive(StructOpt, Debug)]
 #[structopt(name = "immunespace-to-cellfie-mapper", about = "fixes immunespace output to cellfie input")]
 struct Options {
-    #[structopt(short = "i", long = "input", long_help = "input", required = true, parse(from_os_str))]
-    input: path::PathBuf,
+    #[structopt(short = "g", long = "gene_by_sample_matrix", long_help = "gene expression data", required = true, parse(from_os_str))]
+    gene_by_sample_matrix: path::PathBuf,
+
+    #[structopt(short = "p", long = "phenotype_data_matrix", long_help = "phenotype_data_matrix", required = true, parse(from_os_str))]
+    phenotype_data_matrix: path::PathBuf,
 
     #[structopt(short = "m", long = "model", long_help = "model name", default_value = "MT_recon_2_2_entrez.mat")]
     model: String,
-
-    #[structopt(short = "o", long = "output", long_help = "output", required = true, parse(from_os_str))]
-    output: path::PathBuf,
 }
 fn main() -> Result<(), Box<dyn error::Error>> {
     let start = Instant::now();
@@ -33,19 +33,31 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     let options = Options::from_args();
     debug!("{:?}", options);
 
-    let genefilter_list = filter_genes_by_model(&options.model)?;
-    let gene_symbol_name_to_hgnc_id_map = get_gene_symbol_name_to_hgnc_id_map(&genefilter_list)?;
+    process_gene_by_sample_matrix(&options.gene_by_sample_matrix, &options.model)?;
+    process_phenotype_data_matrix(&options.phenotype_data_matrix)?;
 
-    let agent: ureq::Agent = ureq::AgentBuilder::new()
-        .timeout_read(Duration::from_secs(10))
-        .timeout_write(Duration::from_secs(10))
-        .build();
+    info!("Duration: {}", format_duration(start.elapsed()).to_string());
+    Ok(())
+}
 
-    let output_file = fs::File::create(options.output)?;
+fn process_gene_by_sample_matrix(gene_by_sample_matrix: &path::PathBuf, reference_model: &String) -> Result<(), Box<dyn error::Error>> {
+    let gene_filter_list = filter_genes_by_model(reference_model)?;
+    let gene_symbol_name_to_hgnc_id_map = get_gene_symbol_name_to_hgnc_id_map(&gene_filter_list)?;
+
+    // let agent: ureq::Agent = ureq::AgentBuilder::new()
+    //     .timeout_read(Duration::from_secs(10))
+    //     .timeout_write(Duration::from_secs(10))
+    //     .build();
+
+    let parent_dir = gene_by_sample_matrix.parent().unwrap();
+    // let parent_dir = path::Path::new("/tmp");
+
+    let output_path = parent_dir.clone().join("geneBySampleMatrix.new.csv");
+    let output_file = fs::File::create(output_path)?;
     let mut writer = io::BufWriter::new(output_file);
 
-    let input_file = fs::File::open(options.input)?;
-    let reader = io::BufReader::new(input_file);
+    let gene_by_sample_matrix_file = fs::File::open(gene_by_sample_matrix)?;
+    let reader = io::BufReader::new(gene_by_sample_matrix_file);
 
     for line in reader.lines().skip(1) {
         let line = line?;
@@ -64,15 +76,33 @@ fn main() -> Result<(), Box<dyn error::Error>> {
         }
     }
 
-    info!("Duration: {}", format_duration(start.elapsed()).to_string());
+    fs::rename(&output_path, gene_by_sample_matrix)?;
+    fs::remove_file(&output_path)?;
+
     Ok(())
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct GeneDataEntry {
-    symbol: String,
-    hgnc_id: String,
-    entrez_id: String,
+fn process_phenotype_data_matrix(phenotype_data_matrix: &path::PathBuf) -> Result<(), Box<dyn error::Error>> {
+    let parent_dir = phenotype_data_matrix.parent().unwrap();
+    // let parent_dir = path::Path::new("/tmp");
+    let output_path = parent_dir.clone().join("phenoDataMatrix.new.csv");
+    let output_file = fs::File::create(output_path)?;
+    let mut writer = io::BufWriter::new(output_file);
+
+    let phenotype_data_matrix_file = fs::File::open(phenotype_data_matrix)?;
+    let reader = io::BufReader::new(phenotype_data_matrix_file);
+
+    for line in reader.lines() {
+        let line = line?;
+        let line = line.replace("\"", "");
+        let split = line.split(",").skip(1).collect_vec();
+        let line = split.join(",");
+        writer.write_all(format!("{}\n", line).as_bytes())?;
+    }
+
+    fs::rename(&output_path, phenotype_data_matrix)?;
+    fs::remove_file(&output_path)?;
+    Ok(())
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -125,6 +155,13 @@ fn filter_genes_by_model(model: &String) -> Result<Vec<String>, Box<dyn error::E
     genes_filter_list.sort();
     genes_filter_list.dedup();
     Ok(genes_filter_list)
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct GeneDataEntry {
+    symbol: String,
+    hgnc_id: String,
+    entrez_id: String,
 }
 
 fn get_gene_symbol_name_to_hgnc_id_map(genefilter_list: &Vec<String>) -> Result<HashMap<String, String>, Box<dyn error::Error>> {
