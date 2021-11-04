@@ -76,8 +76,6 @@ fn process_gene_by_sample_matrix(gene_by_sample_matrix: &path::PathBuf, referenc
     }
 
     fs::rename(&output_path, gene_by_sample_matrix)?;
-    fs::remove_file(&output_path)?;
-
     Ok(())
 }
 
@@ -100,7 +98,6 @@ fn process_phenotype_data_matrix(phenotype_data_matrix: &path::PathBuf) -> Resul
     }
 
     fs::rename(&output_path, phenotype_data_matrix)?;
-    fs::remove_file(&output_path)?;
     Ok(())
 }
 
