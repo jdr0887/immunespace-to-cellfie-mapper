@@ -53,7 +53,7 @@ fn process_gene_by_sample_matrix(gene_by_sample_matrix: &path::PathBuf, referenc
     // let parent_dir = path::Path::new("/tmp");
 
     let output_path = parent_dir.clone().join("geneBySampleMatrix.new.csv");
-    let output_file = fs::File::create(output_path)?;
+    let output_file = fs::File::create(&output_path)?;
     let mut writer = io::BufWriter::new(output_file);
 
     let gene_by_sample_matrix_file = fs::File::open(gene_by_sample_matrix)?;
@@ -86,7 +86,7 @@ fn process_phenotype_data_matrix(phenotype_data_matrix: &path::PathBuf) -> Resul
     let parent_dir = phenotype_data_matrix.parent().unwrap();
     // let parent_dir = path::Path::new("/tmp");
     let output_path = parent_dir.clone().join("phenoDataMatrix.new.csv");
-    let output_file = fs::File::create(output_path)?;
+    let output_file = fs::File::create(&output_path)?;
     let mut writer = io::BufWriter::new(output_file);
 
     let phenotype_data_matrix_file = fs::File::open(phenotype_data_matrix)?;
