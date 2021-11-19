@@ -63,7 +63,7 @@ fn process_gene_by_sample_matrix(gene_by_sample_matrix: &path::PathBuf, referenc
         let gene = line.split(",").next().unwrap().replace("\"", "");
         match gene_symbol_name_to_hgnc_id_map.get(gene.as_str()) {
             Some(gene_replacement) => {
-                let line = line.replace(gene.as_str(), gene_replacement).replace("\"", "").replace(",", "\t");
+                let line = line.replace(gene.as_str(), gene_replacement).replace("\"", "");
                 writer.write_all(format!("{}\n", line).as_bytes())?;
             }
             None => {
